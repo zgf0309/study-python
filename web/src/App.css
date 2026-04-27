@@ -85,35 +85,8 @@
   color: var(--muted);
 }
 
-.aurora {
-  position: absolute;
-  width: 34rem;
-  height: 34rem;
-  border-radius: 999px;
-  filter: blur(36px);
-  opacity: 0.45;
-  animation: drift 12s ease-in-out infinite alternate;
-}
-
-.aurora-left {
-  top: -8rem;
-  left: -10rem;
-  background: rgba(255, 139, 61, 0.32);
-}
-
-.aurora-right {
-  top: 8rem;
-  right: -8rem;
-  background: rgba(0, 134, 214, 0.24);
-}
-
-@keyframes drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(40px, -20px, 0) scale(1.08);
-  }
+.panel-title {
+  margin: 0;
 }
 
 @media (max-width: 960px) {

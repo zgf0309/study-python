@@ -1,4 +1,7 @@
-from dataclasses import asdict, dataclass
+# asdict: 将数据类对象转换成字典。
+from dataclasses import asdict
+# dataclass: 声明健康检查响应的数据结构。
+from dataclasses import dataclass
 
 
 @dataclass(slots=True)
