@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Space, Table, Tag } from 'antd'
+import { Alert, Button, Card, Flex, Input, Space, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 
 import type { RolesRecord } from '../services/api'
@@ -7,6 +7,9 @@ import { formatDateTime } from '../utils/format'
 type RoleTableCardProps = {
 roles: RolesRecord[]
 loading: boolean
+search: any
+total: number
+onSearch: (values: any) => void
 onConfigureMenus: (role: RolesRecord) => void
 onEdit: (role: RolesRecord) => void
 onDelete: (role: RolesRecord) => void
@@ -15,6 +18,9 @@ onDelete: (role: RolesRecord) => void
 export function RoleTableCard({
 roles,
 loading,
+search,
+total,
+onSearch,
 onConfigureMenus,
 onEdit,
 onDelete,
@@ -70,10 +76,14 @@ const columns: ColumnsType<RolesRecord> = [
   ]
 
   return (
-  <Card title="角色列表" extra={<Tag color="processing">数据来自本地数据库</Tag>} style={{borderRadius: '0 0 24px 24px'}}>
+  <Card title={
+    <Flex gap={20} align="center">
+      <h4 className="panel-title">角色列表</h4>
+      <Input placeholder="搜索角色" style={{ width: 200 }} onInput={(e: any) => onSearch({ ...search, name: e.target.value, page: 1 })} />
+    </Flex>
+  } extra={<Tag color="processing">数据来自本地数据库</Tag>} style={{borderRadius: '0 0 24px 24px'}}>
     <Alert type="info" showIcon className="hint" message="这里的数据流向是：浏览器 -> FastAPI 接口 -> SQLAlchemy -> SQLite。" />
-    <Table rowKey="id" columns={columns} dataSource={roles} loading={loading} pagination={{ pageSize: 5 }} scroll={{ x:
-      720 }} />
+    <Table rowKey="id" columns={columns} dataSource={roles} loading={loading} pagination={{ current: search?.page, pageSize: search?.page_size, total, onChange: (page, pageSize) => onSearch({ ...search, page, page_size: pageSize }) }} scroll={{ x: 720 }} />
   </Card>
   )
   }

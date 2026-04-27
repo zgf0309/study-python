@@ -28,16 +28,24 @@ roles_router = APIRouter()
 
 
 @roles_router.get('/roles')
-def read_roles(name: str = Query(default='')):
+def read_roles(
+    name: str = Query(default=''),
+    page: int = Query(default=0),
+    page_size: int = Query(default=10, ge=1, le=100),
+):
     name = name.strip()
 
     with SessionLocal() as db:
         roles = crud.list_roles(
             db,
             name=name or None,
+            page=page,
+            page_size=page_size,
         )
+        payload = [schemas.serialize_role(role) for role in roles]
+        extra = {'total': crud.count_roles(db, name=name or None)} if page >= 1 else {}
 
-    return api_response(data=[schemas.serialize_role(role) for role in roles])
+    return api_response(data=payload, **extra)
 
 @roles_router.post('/roles')
 def add_role(data: dict[str, Any] | None = Body(default=None)):

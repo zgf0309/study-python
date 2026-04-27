@@ -1,5 +1,5 @@
 # 构造 ORM 查询语句。
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 # 表示当前 CRUD 使用的数据库会话类型。
 from sqlalchemy.orm import Session, contains_eager
 
@@ -13,17 +13,11 @@ def list_roles(
     *,
     name: str | None = None,
     status: str | None = None,
+    page: int = 0,
+    page_size: int = 10,
 ) -> list[models.Role]:
     statement = select(models.Role)
 
-    # statement = (db.query(models.Role)
-    #     .outerjoin(models.UserRoles, models.UserRoles.role_id == models.Role.id)
-    #     .outerjoin(models.User, models.UserRoles.user_id == models.User.id)
-    #     .options(contains_eager(models.Role.users))
-    #     .order_by(models.Role.id.desc(), models.User.id.asc())
-    #     .all())
-
-    
     if name:
         statement = statement.where(models.Role.name.ilike(f'%{name}%'))
 
@@ -31,7 +25,28 @@ def list_roles(
         statement = statement.where(models.Role.status == status)
 
     statement = statement.order_by(models.Role.sort.asc(), models.Role.id.asc())
+
+    if page >= 1 and page_size > 0:
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
+
     return list(db.scalars(statement))
+
+
+def count_roles(
+    db: Session,
+    *,
+    name: str | None = None,
+    status: str | None = None,
+) -> int:
+    statement = select(func.count()).select_from(models.Role)
+
+    if name:
+        statement = statement.where(models.Role.name.ilike(f'%{name}%'))
+
+    if status:
+        statement = statement.where(models.Role.status == status)
+
+    return int(db.scalar(statement) or 0)
 
 def create_role(db: Session, payload: schemas.RoleCreate) -> models.Role:
     role = models.Role(**payload.model_dump())

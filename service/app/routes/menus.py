@@ -28,16 +28,24 @@ menus_router = APIRouter()
 
 
 @menus_router.get('/menus')
-def read_menus( name: str = Query(default='')):
+def read_menus(
+    name: str = Query(default=''),
+    page: int = Query(default=0),
+    page_size: int = Query(default=10, ge=1, le=100),
+):
     name = name.strip()
 
     with SessionLocal() as db:
         menus = crud.list_menus(
             db,
             name=name or None,
+            page=page,
+            page_size=page_size,
         )
+        payload = [schemas.serialize_menu(menu) for menu in menus]
+        extra = {'total': crud.count_menus(db, name=name or None)} if page >= 1 else {}
 
-    return api_response(data=[schemas.serialize_menu(menu) for menu in menus])
+    return api_response(data=payload, **extra)
 
 
 @menus_router.get('/menus/{menu_id}')

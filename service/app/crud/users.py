@@ -1,7 +1,7 @@
 # 构造 ORM 查询语句。
 from sqlalchemy import Select, func, select
 # 表示当前 CRUD 使用的数据库会话类型。
-from sqlalchemy.orm import Session, selectinload, contains_eager
+from sqlalchemy.orm import Session
 
 # models: 用户等 ORM 模型定义模块。
 # schemas: 用户相关的数据传输结构模块。
@@ -82,3 +82,16 @@ def user_relation_roles(db: Session, user_id: int, role_ids: list[int]) -> model
     db.commit()
     db.refresh(user)
     return user
+
+def query_relation_roles(db: Session, user_id: int) -> list[models.Role]:
+    user = db.get(models.User, user_id)
+    if not user:
+        raise ValueError('User not found')
+
+    statement = (
+        select(models.Role)
+        .join(models.UserRoles, models.UserRoles.role_id == models.Role.id)
+        .where(models.UserRoles.user_id == user_id)
+        .order_by(models.Role.sort.asc(), models.Role.id.asc())
+    )
+    return list(db.scalars(statement))

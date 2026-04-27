@@ -1,7 +1,7 @@
 # 标注查询语句对象的类型。
 from sqlalchemy import Select
 # 构造 ORM 查询语句。
-from sqlalchemy import select
+from sqlalchemy import func, select
 # 表示当前 CRUD 使用的数据库会话类型。
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,8 @@ def list_menus(
     *,
     name: str | None = None,
     status: str | None = None,
+    page: int = 0,
+    page_size: int = 10,
 ) -> list[models.Menu]:
     statement: Select[tuple[models.Menu]] = select(models.Menu)
 
@@ -25,7 +27,28 @@ def list_menus(
         statement = statement.where(models.Menu.status == status)
 
     statement = statement.order_by(models.Menu.sort.asc(), models.Menu.id.asc())
+
+    if page >= 1 and page_size > 0:
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
+
     return list(db.scalars(statement))
+
+
+def count_menus(
+    db: Session,
+    *,
+    name: str | None = None,
+    status: str | None = None,
+) -> int:
+    statement = select(func.count()).select_from(models.Menu)
+
+    if name:
+        statement = statement.where(models.Menu.name.ilike(f'%{name}%'))
+
+    if status:
+        statement = statement.where(models.Menu.status == status)
+
+    return int(db.scalar(statement) or 0)
 
 
 def get_menu(db: Session, menu_id: int) -> models.Menu | None:

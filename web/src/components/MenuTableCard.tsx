@@ -1,12 +1,15 @@
-import { Alert, Button, Card, Flex, Space, Table, Tag } from 'antd'
+import { Alert, Button, Card, Flex, Input, Space, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 
-import type { MenusRecord } from '../api'
+import type { MenusRecord } from '../services/api'
 import { formatDateTime } from '../utils/format'
 
 type MenuTableCardProps = {
 menus: MenusRecord[]
 loading: boolean
+search: any
+total: number
+onSearch: (values: any) => void
 onEdit: (menu: MenusRecord) => void
 onDelete: (menu: MenusRecord) => void
 }
@@ -14,6 +17,9 @@ onDelete: (menu: MenusRecord) => void
 export function MenuTableCard({
 menus,
 loading,
+search,
+total,
+onSearch,
 onEdit,
 onDelete,
 }: MenuTableCardProps) {
@@ -59,10 +65,14 @@ const columns: ColumnsType<MenusRecord> = [
     ]
 
   return (
-  <Card title="菜单列表" extra={<Tag color="processing">数据来自本地数据库</Tag>} style={{borderRadius: '0 0 24px 24px'}}>
+  <Card title={
+    <Flex gap={20} align="center">
+      <h4 className="panel-title">菜单列表</h4>
+      <Input placeholder="搜索菜单" style={{ width: 200 }} onInput={(e: any) => onSearch({ ...search, name: e.target.value, page: 1 })} />
+    </Flex>
+  } extra={<Tag color="processing">数据来自本地数据库</Tag>} style={{borderRadius: '0 0 24px 24px'}}>
     <Alert type="info" showIcon className="hint" message="这里的数据流向是：浏览器 -> FastAPI 接口 -> SQLAlchemy -> SQLite。" />
-    <Table rowKey="id" columns={columns} dataSource={menus} loading={loading} pagination={{ pageSize: 5 }} scroll={{ x:
-      720 }} />
+    <Table rowKey="id" columns={columns} dataSource={menus} loading={loading} pagination={{ current: search?.page, pageSize: search?.page_size, total, onChange: (page, pageSize) => onSearch({ ...search, page, page_size: pageSize }) }} scroll={{ x: 720 }} />
   </Card>
   )
   }

@@ -100,6 +100,15 @@ export async function deleteUser(payload: CreateUserPayload) {
   })
 }
 
+export async function getRelationRoles(payload: any) {
+  return request<RolesRecord[]>({
+    method: 'GET',
+    url: `/users/relation-roles`,
+    params: payload,
+  })
+}
+
+
 export async function fetchMenus(payload: CreateMenusPayload) {
   return request<MenusRecord[]>({
     method: 'GET',

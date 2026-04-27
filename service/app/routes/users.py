@@ -8,7 +8,7 @@ from typing import Any
 # Body: 从请求体中读取提交的数据。
 # HTTPException: 主动返回 HTTP 错误响应。
 # status: 提供 HTTP 状态码常量。
-from fastapi import APIRouter, Body, HTTPException, Query, status
+from fastapi import APIRouter, Body, HTTPException, Query, status, Request
 
 # IntegrityError: 捕获数据库唯一约束等完整性异常。
 from sqlalchemy.exc import IntegrityError
@@ -25,7 +25,14 @@ from ..response import api_response
 
 users_router = APIRouter()
 @users_router.get('/users')
-def read_users(name: str = Query(default=''), page: int = Query(default=0), page_size: int = Query(default=10, ge=1, le=100)):
+def read_users(
+    name: str = Query(default=''), 
+    page: int = Query(default=0), 
+    page_size: int = Query(default=10, ge=1, le=100),
+):
+
+    name = name.strip()
+
     with SessionLocal() as db:
         users = crud.list_users(
             db,
@@ -154,3 +161,27 @@ def user_relation_roles(data: dict[str, Any] | None = Body(default=None)):
             raise HTTPException(status_code=404, detail='用户不存在。')
 
     return api_response(data=None, message='用户权限已更新。')
+
+@users_router.get('/users/relation-roles')
+def query_relation_roles(id: int = Query(default=0)):
+
+    with SessionLocal() as db:
+        try:
+            roles = crud.query_relation_roles(db, id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail='用户不存在。')
+        payload = [schemas.serialize_role(role) for role in roles]
+
+    return api_response(data=payload)
+
+# 多查询参数时，用request.query_params.get()获取参数值，避免 FastAPI 对参数进行类型转换导致的错误。
+# def query_relation_roles(request: Request):
+#     id = request.query_params.get('id')
+#     with SessionLocal() as db:
+#         try:
+#             roles = crud.query_relation_roles(db, id)
+#         except ValueError:
+#             raise HTTPException(status_code=404, detail='用户不存在。')
+#         payload = [schemas.serialize_role(role) for role in roles]
+
+#     return api_response(data=payload)
