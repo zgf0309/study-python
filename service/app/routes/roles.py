@@ -138,3 +138,20 @@ def role_relation_menus(data: dict[str, Any] | None = Body(default=None)):
             raise HTTPException(status_code=404, detail='角色不存在。')
 
     return api_response(data=response_data, message='角色菜单关联已更新。')
+
+
+@roles_router.get('/roles/relation-menus')
+def query_relation_menus(id: int = Query(default=0)):
+    if not id or id <= 0:
+        raise HTTPException(status_code=400, detail='角色 ID 不存在。')
+
+    with SessionLocal() as db:
+        try:
+            menus = crud.query_relation_menus(db, id)
+            if not menus:
+                raise ValueError('角色不存在')
+            response_data = [schemas.serialize_menu(menu) for menu in menus]
+        except ValueError:
+            raise HTTPException(status_code=404, detail='角色不存在。')
+
+    return api_response(data=response_data, message='角色关联菜单获取成功。')

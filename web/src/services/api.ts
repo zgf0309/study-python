@@ -108,6 +108,13 @@ export async function getRelationRoles(payload: any) {
   })
 }
 
+export async function userRelationRoles(payload: any) {
+  return request<any>({
+    method: 'POST',
+    url: '/users/relation-roles',
+    data: payload,
+  })
+}
 
 export async function fetchMenus(payload: CreateMenusPayload) {
   return request<MenusRecord[]>({
@@ -171,18 +178,18 @@ export async function deleteRoles(payload: Pick<RolesRecord, 'id'>) {
   })
 }
 
-export async function userRelationRoles(payload: any) {
-  return request<any>({
-    method: 'POST',
-    url: '/users/relation-roles',
-    data: payload,
-  })
-}
-
 export async function roleRelationMenus(payload: any) {
   return request<any>({
     method: 'POST',
     url: '/roles/relation-menus',
     data: payload,
+  })
+}
+
+export async function getRelationMenus(payload: any) {
+  return request<MenusRecord[]>({
+    method: 'GET',
+    url: '/roles/relation-menus',
+    params: payload,
   })
 }

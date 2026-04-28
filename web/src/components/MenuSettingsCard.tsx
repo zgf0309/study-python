@@ -1,14 +1,15 @@
 import { CloseOutlined } from '@ant-design/icons'
-import { Button, Card, Flex, Table } from 'antd'
+import { Button, Card, Flex, message, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 
 import type { MenusRecord } from '../services/api'
 import { formatDateTime } from '../utils/format'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { TableRowSelection } from 'antd/es/table/interface'
-import type { RolesRecord } from '../services/api'
+import { getRelationMenus } from '../services/api'
 
 type MenuSettingsCardProps = {
+  roleId: number | null
   menus: MenusRecord[]
   loading: boolean
   onBack: () => void
@@ -16,6 +17,7 @@ type MenuSettingsCardProps = {
   }
 
   export function MenuSettingsCard({
+  roleId,
   menus,
   loading,
   onBack,
@@ -46,6 +48,28 @@ type MenuSettingsCardProps = {
       render: formatDateTime,
       },
     ]
+
+    useEffect(() => {
+     if (roleId) {
+      void getRelationMenusList();
+     }
+    }, [roleId])
+
+    const getRelationMenusList = async () => {
+      try {
+        const res: any = await getRelationMenus({ id: roleId })
+        const {code, data} = res
+        if (code === 200) {
+          setSelectedRowKeys(data?.data.map((menu: MenusRecord) => menu.id) || [])
+        } else {
+          message.error('获取关联菜单失败')
+          setSelectedRowKeys([])
+        }
+      } catch (error) {
+        console.error('Failed to fetch relation menus:', error)
+        setSelectedRowKeys([])
+      }
+    }
 
     const rowSelection: TableRowSelection<MenusRecord> = {
       selectedRowKeys,

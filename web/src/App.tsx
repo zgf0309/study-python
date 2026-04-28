@@ -252,6 +252,7 @@ function App() {
     if (tabKey === 'role') {
       return (
         <MenuSettingsCard
+          roleId={selectedRoleId}
           menus={menus.allMenus}
           loading={menus.loading}
           onBack={openCreatePanel}

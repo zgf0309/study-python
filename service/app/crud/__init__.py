@@ -5,7 +5,7 @@
 # update_menu: 导出菜单更新方法。
 from .menus import count_menus, create_menu, delete_menu, get_menu, list_menus, update_menu
 
-from .roles import count_roles, create_role, delete_role, update_role, list_roles, role_relation_menus
+from .roles import count_roles, create_role, delete_role, update_role, list_roles, role_relation_menus, query_relation_menus
 
 # create_user: 导出用户新增方法。
 # delete_user: 导出用户删除方法。
@@ -29,6 +29,7 @@ __all__ = [
     'list_roles',
     'count_roles',
     'role_relation_menus',
+    'query_relation_menus',
     'list_menus',
     'count_menus',
     'get_menu',
