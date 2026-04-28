@@ -68,12 +68,13 @@ def add_role(data: dict[str, Any] | None = Body(default=None)):
     with SessionLocal() as db:
         try:
             role = crud.create_role(db, payload)
+            response_data = schemas.serialize_role(role)
         except IntegrityError:
             print(traceback.format_exc())
             db.rollback()
             raise HTTPException(status_code=400, detail='角色名称已存在，请更换。')
 
-    return api_response( data=schemas.serialize_role(role), message='角色已创建。')
+    return api_response(data=response_data, message='角色已创建。')
 
 @roles_router.put('/roles')
 def update_role(data: dict[str, Any] | None = Body(default=None)):
@@ -101,12 +102,13 @@ def update_role(data: dict[str, Any] | None = Body(default=None)):
     with SessionLocal() as db:
         try:
             role = crud.update_role(db, payload)
+            response_data = schemas.serialize_role(role)
         except IntegrityError:
             print(traceback.format_exc())
             db.rollback()
             raise HTTPException(status_code=400, detail='角色名称已存在，请更换。')
 
-    return api_response(data=schemas.serialize_role(role), message='角色已更新。')  
+    return api_response(data=response_data, message='角色已更新。')  
 
 @roles_router.delete('/roles/{role_id}')
 def delete_role(role_id: int):

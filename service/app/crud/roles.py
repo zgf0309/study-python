@@ -68,7 +68,7 @@ def update_role(db: Session, payload: schemas.RoleUpdate) -> models.Role:
 def delete_role(db: Session, role_id: int) -> bool:
     role = db.get(models.Role, role_id)
     if not role:
-        raise ValueError('Role not found')
+        return False
     db.delete(role)
     db.commit()
     return True

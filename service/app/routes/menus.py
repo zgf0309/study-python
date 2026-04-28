@@ -55,11 +55,11 @@ def read_menu(menu_id: int):
 
     with SessionLocal() as db:
         menu = crud.get_menu(db, menu_id)
+        if not menu:
+            raise HTTPException(status_code=404, detail='菜单不存在。')
+        response_data = schemas.serialize_menu(menu)
 
-    if not menu:
-        raise HTTPException(status_code=404, detail='菜单不存在。')
-
-    return api_response(data=schemas.serialize_menu(menu))
+    return api_response(data=response_data)
 
 
 @menus_router.post('/menus', status_code=status.HTTP_201_CREATED)
@@ -88,12 +88,13 @@ def add_menu(data: dict[str, Any] | None = Body(default=None)):
     with SessionLocal() as db:
         try:
             menu = crud.create_menu(db, payload)
+            response_data = schemas.serialize_menu(menu)
         except IntegrityError:
             print(traceback.format_exc())
             db.rollback()
             raise HTTPException(status_code=400, detail='菜单路径已存在，请更换。')
 
-    return api_response(data=schemas.serialize_menu(menu), message='菜单已创建。')
+    return api_response(data=response_data, message='菜单已创建。')
 
 
 @menus_router.put('/menus')
@@ -134,6 +135,7 @@ def update_menu(data: dict[str, Any] | None = Body(default=None)):
     with SessionLocal() as db:
         try:
             menu = crud.update_menu(db, payload)
+            response_data = schemas.serialize_menu(menu)
         except ValueError:
             raise HTTPException(status_code=404, detail='菜单不存在。')
         except IntegrityError:
@@ -141,7 +143,7 @@ def update_menu(data: dict[str, Any] | None = Body(default=None)):
             db.rollback()
             raise HTTPException(status_code=400, detail='菜单路径已存在，请更换。')
 
-    return api_response(data=schemas.serialize_menu(menu), message='菜单已更新。')
+    return api_response(data=response_data, message='菜单已更新。')
 
 
 @menus_router.delete('/menus/{menu_id}')
