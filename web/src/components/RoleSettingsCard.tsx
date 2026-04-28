@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 import type { TableRowSelection } from 'antd/es/table/interface'
 
 type RoleSettingsCardProps = {
-  userId: number
+  userId: number | null
   roles: RolesRecord[]
   loading: boolean
   onBack: () => void

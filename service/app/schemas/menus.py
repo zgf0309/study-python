@@ -38,6 +38,7 @@ class MenuRead:
     path: str
     icon: str
     sort: int
+    role_ids: list[int]
     status: str
     created_at: datetime | None
     
@@ -55,5 +56,6 @@ def serialize_menu(menu: object) -> dict[str, str | int]:
         icon=menu.icon,
         sort=menu.sort,
         status=menu.status,
+        role_ids=[role.id for role in menu.roles],
         created_at=menu.created_at,
     ).to_dict()

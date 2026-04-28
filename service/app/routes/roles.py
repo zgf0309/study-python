@@ -119,3 +119,22 @@ def delete_role(role_id: int):
             raise HTTPException(status_code=404, detail='角色不存在。')
 
     return api_response(data=None, message='角色已删除。')
+
+@roles_router.post('/roles/relation-menus')
+def role_relation_menus(data: dict[str, Any] | None = Body(default=None)):
+    data = data or {}
+    role_id = int(data.get('id', 0))
+    menu_ids = data.get('menu_ids', [])
+    if role_id <= 0:
+        raise HTTPException(status_code=400, detail='角色 ID 不存在。')
+    if not isinstance(menu_ids, list) or not all(isinstance(i, int) and i > 0 for i in menu_ids):
+        raise HTTPException(status_code=400, detail='菜单 ID 列表不合法。')
+
+    with SessionLocal() as db:
+        try:
+            role = crud.role_relation_menus(db, role_id, menu_ids)
+            response_data = schemas.serialize_role(role)
+        except ValueError:
+            raise HTTPException(status_code=404, detail='角色不存在。')
+
+    return api_response(data=response_data, message='角色菜单关联已更新。')

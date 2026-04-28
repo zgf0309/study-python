@@ -36,6 +36,7 @@ class RoleRead:
     description: str
     sort: int
     user_ids: list[int]
+    menu_ids: list[int]
     status: str
     created_at: datetime | None 
     def to_dict(self) -> dict[str, str | int]:
@@ -49,6 +50,7 @@ def serialize_role(role: object) -> dict[str, str | int]:
         description=role.description,
         sort=role.sort,
         user_ids=[ user.id for user in role.users ],
+        menu_ids=[ menu.id for menu in role.menus ],
         status=role.status,
         created_at=role.created_at,
     ).to_dict()

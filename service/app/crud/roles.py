@@ -72,3 +72,20 @@ def delete_role(db: Session, role_id: int) -> bool:
     db.delete(role)
     db.commit()
     return True
+
+
+def role_relation_menus(db: Session, role_id: int, menu_ids: list[int]) -> models.Role:
+    role = db.get(models.Role, role_id)
+    if not role:
+        raise ValueError('Role not found')
+
+    menus = []
+    if menu_ids:
+        menus = list(db.scalars(select(models.Menu).where(models.Menu.id.in_(menu_ids))))
+        if len(menus) != len(menu_ids):
+            raise ValueError('Some menus not found')
+
+    role.menus = menus
+    db.commit()
+    db.refresh(role)
+    return role

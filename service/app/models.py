@@ -32,6 +32,11 @@ class UserRoles(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     role_id: Mapped[int] = mapped_column(ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
 
+class RoleMenus(Base):
+    # 角色菜单关联表模型，保存角色菜单关联信息。
+    __tablename__ = 'role_menus'
+    role_id: Mapped[int] = mapped_column(ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+    menu_id: Mapped[int] = mapped_column(ForeignKey('menus.id', ondelete='CASCADE'), primary_key=True)
 
 class User(Base):
     # 用户表模型，保存账号基础信息。
@@ -65,6 +70,10 @@ class Role(Base):
         secondary='user_roles',
         back_populates='roles',
     )
+    menus: Mapped[list[Menu]] = relationship(
+        secondary='role_menus',
+        back_populates='roles',
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -81,6 +90,10 @@ class Menu(Base):
     icon: Mapped[str] = mapped_column(String(100), nullable=False, default='appstore')
     sort: Mapped[int] = mapped_column(nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default='enabled')
+    roles: Mapped[list[Role]] = relationship(
+        secondary='role_menus',
+        back_populates='menus',
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
