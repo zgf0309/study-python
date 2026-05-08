@@ -94,6 +94,46 @@ export interface EmbeddingsResponse {
   }
 }
 
+
+export interface MinioUploadResponse {
+  bucket: string
+  object_name: string
+  filename: string
+  content_type: string
+  size: number
+  public_url: string
+  presigned_url: string
+}
+
+export interface VectorizedFileRecord {
+  id: number
+  bucket: string
+  object_name: string
+  filename: string
+  content_type: string
+  size: number
+  chunk_size: number
+  chunk_overlap: number
+  chunk_count: number
+  embedding_model: string
+  status: string
+  error_message?: string | null
+  created_at: string
+  original_content?: string
+  original_content_source?: 'minio' | 'chunks'
+  presigned_url?: string
+  public_url?: string
+  chunks?: Array<{
+    index: number
+    content: string
+    start: number
+    end: number
+    length: number
+    embedding: number[]
+    embedding_dim: number
+  }>
+}
+
 export interface ChunkEmbeddingsResponse {
   model?: string
   chunk_size: number
@@ -271,6 +311,45 @@ export async function createChunkEmbeddings(payload: {
     method: 'POST',
     url: '/embeddings/chunks',
     data: payload,
+  })
+}
+
+export async function fetchVectorizedFiles() {
+  return request<VectorizedFileRecord[]>({
+    method: 'GET',
+    url: '/files',
+  })
+}
+
+export async function fetchVectorizedFile(id: number) {
+  return request<VectorizedFileRecord>({
+    method: 'GET',
+    url: `/files/${id}`,
+  })
+}
+
+export async function vectorizeMinioFile(payload: {
+  bucket?: string
+  object_name: string
+  model_id?: number
+  chunk_size?: number
+  chunk_overlap?: number
+}) {
+  return request<VectorizedFileRecord>({
+    method: 'POST',
+    url: '/files/vectorize-minio',
+    data: payload,
+  })
+}
+
+export async function uploadFileToMinio(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  return request<MinioUploadResponse>({
+    method: 'POST',
+    url: '/files/upload',
+    data: formData,
   })
 }
 

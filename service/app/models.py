@@ -19,6 +19,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import String
 # 中文注释：从指定模块导入当前文件需要使用的对象。
 from sqlalchemy import Boolean
+from sqlalchemy import Text
 # 定义普通表结构对象。
 # 中文注释：从指定模块导入当前文件需要使用的对象。
 from sqlalchemy import Table
@@ -206,3 +207,45 @@ class LLMModelConfig(Base):
         nullable=False,
     # 中文注释：结束当前多行数据结构或多行参数。
     )
+
+
+class KnowledgeFile(Base):
+    # MinIO 文件处理记录表，保存文件列表和切片向量化状态。
+    __tablename__ = 'knowledge_files'
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    bucket: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    object_name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False, default='application/octet-stream')
+    size: Mapped[int] = mapped_column(nullable=False, default=0)
+    chunk_size: Mapped[int] = mapped_column(nullable=False, default=500)
+    chunk_overlap: Mapped[int] = mapped_column(nullable=False, default=80)
+    chunk_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    embedding_model: Mapped[str] = mapped_column(String(100), nullable=False, default='')
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='completed')
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    chunks: Mapped[list['KnowledgeFileChunk']] = relationship(
+        back_populates='file',
+        cascade='all, delete-orphan',
+    )
+
+
+class KnowledgeFileChunk(Base):
+    # 文件切片向量表，保存每个切片文本及其向量 JSON。
+    __tablename__ = 'knowledge_file_chunks'
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey('knowledge_files.id', ondelete='CASCADE'), nullable=False, index=True)
+    chunk_index: Mapped[int] = mapped_column(nullable=False, index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    start: Mapped[int] = mapped_column(nullable=False, default=0)
+    end: Mapped[int] = mapped_column(nullable=False, default=0)
+    length: Mapped[int] = mapped_column(nullable=False, default=0)
+    embedding: Mapped[str] = mapped_column(Text, nullable=False, default='[]')
+    embedding_dim: Mapped[int] = mapped_column(nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    file: Mapped[KnowledgeFile] = relationship(back_populates='chunks')

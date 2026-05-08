@@ -50,7 +50,9 @@ function getErrorMessage(error: AxiosError<{ message?: string }>) {
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   config.headers.set('Accept', 'application/json')
 
-  if (config.data !== undefined && !config.headers.get('Content-Type')) {
+  const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData
+
+  if (config.data !== undefined && !isFormData && !config.headers.get('Content-Type')) {
     config.headers.set('Content-Type', 'application/json')
   }
 

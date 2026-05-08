@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, App as AntApp, Button, Card, Flex, Input, Select, Space, Tag, Typography } from 'antd'
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, App as AntApp, Button, Card, Flex, Input, Select, Space, Table, Tag, Typography } from 'antd'
+
+import { FileDetailView, getFileKind } from './FileDetailView'
 
 import {
   createChunkEmbeddings,
   createEmbeddings,
   fetchModels,
+  fetchVectorizedFile,
+  fetchVectorizedFiles,
   streamChat,
+  uploadFileToMinio,
+  vectorizeMinioFile,
   type ChatMessagePayload,
   type ChunkEmbeddingsResponse,
   type EmbeddingsResponse,
+  type MinioUploadResponse,
   type ModelConfigRecord,
+  type VectorizedFileRecord,
 } from '../services/api'
 import { unwrapList } from '../hooks/utils'
 
@@ -42,10 +50,18 @@ export function ModelTableCard() {
   const [chunkOverlap, setChunkOverlap] = useState(20)
   const [chunkResult, setChunkResult] = useState<ChunkEmbeddingsResponse | null>(null)
   const [chunkLoading, setChunkLoading] = useState(false)
+  const [fileUploadLoading, setFileUploadLoading] = useState(false)
+  const [fileVectorLoading, setFileVectorLoading] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<MinioUploadResponse | null>(null)
+  const [vectorizedFiles, setVectorizedFiles] = useState<VectorizedFileRecord[]>([])
+  const [fileVectorResult, setFileVectorResult] = useState<VectorizedFileRecord | null>(null)
+  const [selectedFile, setSelectedFile] = useState<VectorizedFileRecord | null>(null)
+  const [selectedFileLoading, setSelectedFileLoading] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const selectedModel = useMemo(
     () => models.find((model) => model.id === selectedModelId),
@@ -87,10 +103,21 @@ export function ModelTableCard() {
     }
   }, [message])
 
+  const loadVectorizedFiles = useCallback(async () => {
+    try {
+      const res = await fetchVectorizedFiles()
+      const result = unwrapList<VectorizedFileRecord>(res)
+      setVectorizedFiles(result?.items ?? [])
+    } catch {
+      // 文件列表加载失败不影响模型对话主流程。
+    }
+  }, [])
+
   useEffect(() => {
     void loadModels()
+    void loadVectorizedFiles()
     return () => abortRef.current?.abort()
-  }, [loadModels])
+  }, [loadModels, loadVectorizedFiles])
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort()
@@ -198,10 +225,89 @@ export function ModelTableCard() {
     }
   }, [chunkOverlap, chunkSize, chunkText, embeddingModel, message])
 
+  const uploadSelectedFileToMinio = useCallback(async (file: File) => {
+    setFileUploadLoading(true)
+    try {
+      const res = await uploadFileToMinio(file)
+      const wrapped = res as unknown as { data?: { data?: MinioUploadResponse } }
+      const result = wrapped.data?.data ?? (res as unknown as MinioUploadResponse)
+      setUploadedFile(result)
+      void message.success('文件已上传到 MinIO。')
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : '文件上传到 MinIO 失败。')
+    } finally {
+      setFileUploadLoading(false)
+    }
+  }, [message])
+
+  const handleFileInputChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      void uploadSelectedFileToMinio(file)
+    }
+    event.target.value = ''
+  }, [uploadSelectedFileToMinio])
+
+  const vectorizeUploadedFile = useCallback(async () => {
+    if (!uploadedFile) {
+      void message.warning('请先上传文件到 MinIO。')
+      return
+    }
+    if (!embeddingModel) {
+      void message.warning('未找到可用的向量模型。')
+      return
+    }
+    setFileVectorLoading(true)
+    try {
+      const res = await vectorizeMinioFile({
+        bucket: uploadedFile.bucket,
+        object_name: uploadedFile.object_name,
+        model_id: embeddingModel.id,
+        chunk_size: chunkSize,
+        chunk_overlap: chunkOverlap,
+      })
+      const wrapped = res as unknown as { data?: { data?: VectorizedFileRecord } }
+      const result = wrapped.data?.data ?? (res as unknown as VectorizedFileRecord)
+      setFileVectorResult(result)
+      await loadVectorizedFiles()
+      void message.success('文件已切片、向量化并保存到数据库。')
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : '文件切片向量化失败。')
+    } finally {
+      setFileVectorLoading(false)
+    }
+  }, [chunkOverlap, chunkSize, embeddingModel, loadVectorizedFiles, message, uploadedFile])
+
   const firstEmbedding = embeddingResult?.data?.[0]?.embedding ?? []
 
+  const openFileDetail = useCallback(async (record: VectorizedFileRecord) => {
+    setSelectedFile(record)
+    setSelectedFileLoading(true)
+    try {
+      const res = await fetchVectorizedFile(record.id)
+      const wrapped = res as unknown as { data?: { data?: VectorizedFileRecord } }
+      setSelectedFile(wrapped.data?.data ?? (res as unknown as VectorizedFileRecord))
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : '文件详情加载失败。')
+    } finally {
+      setSelectedFileLoading(false)
+    }
+  }, [message])
+
+  const refreshSelectedFile = useCallback(async () => {
+    if (!selectedFile) return
+    await openFileDetail(selectedFile)
+  }, [openFileDetail, selectedFile])
+  
   return (
-    <Card
+    <>
+    { selectedFile ? (<FileDetailView
+        file={selectedFile}
+        loading={selectedFileLoading}
+        onBack={() => setSelectedFile(null)}
+        onRefresh={refreshSelectedFile}
+      />)
+    : (<Card
       title={
         <Flex gap={12} align="center" wrap="wrap">
           <h4 className="panel-title">模型对话</h4>
@@ -325,24 +431,40 @@ export function ModelTableCard() {
               autoSize={{ minRows: 4, maxRows: 8 }}
             />
             <Flex gap={12} align="center" wrap="wrap">
-              <Input
-                addonBefore="切片长度"
-                type="number"
-                min={1}
-                max={5000}
-                value={chunkSize}
-                onChange={(event) => setChunkSize(Number(event.target.value) || 80)}
-                style={{ width: 180 }}
+              <Space.Compact>
+                <Button disabled>切片长度</Button>
+                <Input
+                  type="number"
+                  min={1}
+                  max={5000}
+                  value={chunkSize}
+                  onChange={(event) => setChunkSize(Number(event.target.value) || 80)}
+                  style={{ width: 96 }}
+                />
+              </Space.Compact>
+              <Space.Compact>
+                <Button disabled>重叠长度</Button>
+                <Input
+                  type="number"
+                  min={0}
+                  max={chunkSize - 1}
+                  value={chunkOverlap}
+                  onChange={(event) => setChunkOverlap(Number(event.target.value) || 0)}
+                  style={{ width: 96 }}
+                />
+              </Space.Compact>
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={handleFileInputChange}
               />
-              <Input
-                addonBefore="重叠长度"
-                type="number"
-                min={0}
-                max={chunkSize - 1}
-                value={chunkOverlap}
-                onChange={(event) => setChunkOverlap(Number(event.target.value) || 0)}
-                style={{ width: 180 }}
-              />
+              <Button
+                loading={fileUploadLoading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                上传文件到 MinIO
+              </Button>
               <Button
                 type="primary"
                 loading={chunkLoading}
@@ -352,6 +474,74 @@ export function ModelTableCard() {
                 切片并向量化
               </Button>
             </Flex>
+            {uploadedFile ? (
+              <Alert
+                type="success"
+                showIcon
+                message={`MinIO 上传成功：${uploadedFile.filename}`}
+                description={(
+                  <Space direction="vertical" size={2}>
+                    <Typography.Text type="secondary">Bucket：{uploadedFile.bucket}</Typography.Text>
+                    <Typography.Text type="secondary">对象名：{uploadedFile.object_name}</Typography.Text>
+                    <Flex gap={12} align="center">
+                      <Typography.Link href={uploadedFile.presigned_url} target="_blank" rel="noreferrer">
+                        打开临时访问链接
+                      </Typography.Link>
+                      <Button
+                        type="primary"
+                        loading={fileVectorLoading}
+                        disabled={!embeddingModel}
+                        onClick={vectorizeUploadedFile}
+                      >
+                        文件切片并向量化
+                      </Button>
+                    </Flex>
+                  </Space>
+                )}
+              />
+            ) : null}
+            {fileVectorResult ? (
+              <Alert
+                type="success"
+                showIcon
+                message={`数据库已保存文件：${fileVectorResult.filename}`}
+                description={`切片 ${fileVectorResult.chunk_count} 段，模型 ${fileVectorResult.embedding_model}，参数 ${fileVectorResult.chunk_size}/${fileVectorResult.chunk_overlap}`}
+              />
+            ) : null}
+            {vectorizedFiles.length > 0 ? (
+              <Table<VectorizedFileRecord>
+                size="small"
+                rowKey="id"
+                pagination={{ pageSize: 5 }}
+                dataSource={vectorizedFiles}
+                columns={[
+                  {
+                    title: '文件名',
+                    dataIndex: 'filename',
+                    key: 'filename',
+                    ellipsis: true,
+                    render: (value: string, record) => (
+                      <Button type="link" size="small" className="file-name-link" onClick={() => void openFileDetail(record)}>
+                        {value}
+                      </Button>
+                    ),
+                  },
+                  {
+                    title: '类型',
+                    key: 'file_kind',
+                    width: 90,
+                    render: (_, record) => {
+                      const kind = getFileKind(record)
+                      const label = kind === 'image' ? '图片' : kind === 'audio' ? '音频' : kind === 'video' ? '视频' : '文档'
+                      return <Tag>{label}</Tag>
+                    },
+                  },
+                  { title: '切片数', dataIndex: 'chunk_count', key: 'chunk_count', width: 90 },
+                  { title: '向量模型', dataIndex: 'embedding_model', key: 'embedding_model', ellipsis: true },
+                  { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
+                ]}
+              />
+            ) : null}
             {chunkResult ? (
               <Space direction="vertical" size={8} style={{ width: '100%' }}>
                 <Alert
@@ -375,6 +565,9 @@ export function ModelTableCard() {
           </Space>
         </Card>
       </Space>
-    </Card>
+    </Card>)
+    }
+    
+    </>
   )
 }

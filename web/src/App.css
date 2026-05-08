@@ -103,7 +103,7 @@
 }
 
 .chat-bubble {
-  width: min(86%, 720px);
+  width: min(86%, 1180px);
   padding: 14px 16px;
   border-radius: 18px;
   background: #fff;
@@ -131,5 +131,331 @@
 
   .hero-copy {
     padding: 22px;
+  }
+}
+
+.file-name-link {
+  height: auto;
+  padding: 0;
+  white-space: normal;
+  text-align: left;
+}
+
+.file-detail-page {
+  overflow: hidden;
+  border: 1px solid rgba(16, 33, 59, 0.08);
+  border-radius: 0 0 24px 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 80px rgba(17, 33, 68, 0.08);
+}
+
+.file-detail-header {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(16, 33, 59, 0.08);
+  background: #fff;
+}
+
+.file-kind-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.file-kind-document { background: #ff4d4f; }
+.file-kind-image { background: #ff8f1f; }
+.file-kind-audio { background: #eb2f96; }
+.file-kind-video { background: #722ed1; }
+
+.document-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.75fr) minmax(340px, 1fr) minmax(280px, 0.75fr);
+  min-height: 720px;
+}
+
+.media-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  min-height: 720px;
+}
+
+.document-original,
+.chunk-list-panel,
+.knowledge-panel,
+.media-main-panel {
+  min-width: 0;
+  padding: 20px;
+}
+
+.document-original,
+.chunk-list-panel,
+.media-main-panel {
+  border-right: 1px solid rgba(16, 33, 59, 0.08);
+}
+
+.detail-section-head {
+  margin-bottom: 14px;
+}
+
+.section-help {
+  display: inline-grid;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  place-items: center;
+  border: 1px solid #8c8c8c;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.chunk-tabs {
+  margin-top: -6px;
+  margin-bottom: 14px;
+}
+
+.chunk-tabs .ant-tabs-nav {
+  margin-bottom: 14px;
+}
+
+.chunk-tabs .ant-tabs-tab {
+  padding: 8px 0;
+}
+
+.detail-section-head .ant-typography,
+.document-original .ant-typography,
+.media-main-panel .ant-typography {
+  margin-top: 0;
+}
+
+.doc-tip {
+  margin-bottom: 28px;
+  padding: 12px 14px;
+  border: 1px solid rgba(47, 84, 235, 0.25);
+  border-radius: 8px;
+  background: #f5f6ff;
+  color: #22305a;
+  font-size: 13px;
+}
+
+.doc-paper {
+  box-sizing: border-box;
+  min-height: 560px;
+  max-width: 1180px;
+  padding: 42px 38px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.doc-highlight {
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 12px !important;
+  padding: 2px 6px;
+  background: #eef0ff;
+  color: #4f5f7e;
+  white-space: pre-wrap;
+}
+
+.document-source {
+  margin-bottom: 0 !important;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+.markdown-source {
+  max-width: 100%;
+  margin: 0;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown-source h1,
+.markdown-source h2,
+.markdown-source h3,
+.markdown-source h4,
+.markdown-source h5,
+.markdown-source h6 {
+  margin: 18px 0 10px;
+  color: #111827;
+  line-height: 1.35;
+}
+
+.markdown-source p,
+.markdown-source ul,
+.markdown-source ol,
+.markdown-source blockquote,
+.markdown-source pre,
+.markdown-source table {
+  margin: 0 0 14px;
+}
+
+.markdown-source pre,
+.markdown-source code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.markdown-source pre {
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f4f6fb;
+}
+
+.markdown-source code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #f4f6fb;
+  font-size: 0.92em;
+}
+
+.markdown-source pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.markdown-source blockquote {
+  padding-left: 12px;
+  border-left: 3px solid #d7dbea;
+  color: #4b5563;
+}
+
+.markdown-source table {
+  display: block;
+  width: 100%;
+  overflow: auto;
+  border-collapse: collapse;
+}
+
+.markdown-source th,
+.markdown-source td {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.chunk-list,
+.knowledge-list {
+  width: 100%;
+}
+
+.detail-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.chunk-row,
+.knowledge-card,
+.active-chunk-card {
+  position: relative;
+  border-color: #e3e6ff !important;
+  background: #f6f6ff !important;
+}
+
+.chunk-row-active,
+.active-chunk-card {
+  border-color: #6b63ff !important;
+  box-shadow: 0 0 0 1px rgba(107, 99, 255, 0.18);
+}
+
+.chunk-row-text,
+.knowledge-text,
+.chunk-content {
+  margin: 10px 0 0 !important;
+  white-space: pre-wrap;
+}
+
+.file-card-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 18px rgba(17, 33, 68, 0.12);
+}
+
+.chunk-number {
+  display: block;
+  margin-bottom: 16px;
+  color: #3155ff;
+}
+
+.active-chunk-card {
+  min-height: 260px;
+}
+
+.image-preview {
+  display: block;
+  max-width: 260px;
+  max-height: 360px;
+  margin-bottom: 14px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.video-preview {
+  display: block;
+  width: min(1180px, 100%);
+  max-height: 420px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: #111827;
+}
+
+.image-caption {
+  display: grid;
+  gap: 2px;
+  border-left: 1px solid #d7dbea;
+  padding-left: 8px;
+}
+
+.audio-player-shell {
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  margin-bottom: 28px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f5f7fb;
+}
+
+.audio-player-shell audio {
+  width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .document-detail-layout,
+  .media-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .document-original,
+  .chunk-list-panel,
+  .media-main-panel {
+    border-right: 0;
+    border-bottom: 1px solid rgba(16, 33, 59, 0.08);
+  }
+
+  .file-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

@@ -2,6 +2,10 @@
 # 中文注释：从指定模块导入当前文件需要使用的对象。
 from fastapi import FastAPI
 
+# files_router: 文件上传路由实例。
+# 中文注释：从指定模块导入当前文件需要使用的对象。
+from .files import files_router
+
 # health_router: 健康检查路由实例。
 # 中文注释：从指定模块导入当前文件需要使用的对象。
 from .health import health_router
@@ -20,6 +24,8 @@ from .model_configs import model_configs_router
 
 # 中文注释：定义函数 register_routers，封装一段可复用的业务逻辑。
 def register_routers(app: FastAPI) -> None:
+    # 中文注释：设置变量或字段 app.include_router(files_router, prefix 的值，供后续逻辑使用。
+    app.include_router(files_router, prefix='/api')
     # 中文注释：设置变量或字段 app.include_router(health_router, prefix 的值，供后续逻辑使用。
     app.include_router(health_router, prefix='/api')
     # 中文注释：设置变量或字段 app.include_router(users_router, prefix 的值，供后续逻辑使用。
