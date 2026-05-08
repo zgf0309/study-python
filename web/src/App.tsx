@@ -7,6 +7,7 @@ import { HealthOverview } from './components/HealthOverview'
 import { MenuEditorCard } from './components/MenuEditorCard'
 import { MenuSettingsCard } from './components/MenuSettingsCard'
 import { MenuTableCard } from './components/MenuTableCard'
+import { ModelTableCard } from './components/ModelTableCard'
 import { RoleEditorCard } from './components/RoleEditorCard'
 import { RoleSettingsCard } from './components/RoleSettingsCard'
 import { RoleTableCard } from './components/RoleTableCard'
@@ -26,7 +27,7 @@ import type {
   UserRecord,
 } from './services/api'
 
-type TabKey = 'user' | 'role' | 'menu'
+type TabKey = 'user' | 'role' | 'menu' | 'model'
 type SidePanel = 'form' | 'settings'
 type FormMode = 'create' | 'edit'
 
@@ -201,6 +202,11 @@ function App() {
         />
       ),
     },
+    {
+      label: '模型',
+      key: 'model',
+      children: <ModelTableCard />,
+    },
   ]
 
   function renderEditorPanel() {
@@ -226,6 +232,7 @@ function App() {
         />
       )
     }
+    if (tabKey === 'model') return null
     return (
       <MenuEditorCard
         mode={formMode}
@@ -269,7 +276,7 @@ function App() {
         <HealthOverview health={health.health} loading={health.loading} />
 
         <Row gutter={[16, 16]} className="main-grid">
-          <Col xs={24} xl={14}>
+          <Col xs={24} xl={tabKey === 'model' ? 24 : 14}>
             <Tabs
               activeKey={tabKey}
               onChange={(key) => setTabKey(key as TabKey)}
@@ -279,9 +286,11 @@ function App() {
             />
           </Col>
 
-          <Col xs={24} xl={10}>
-            {sidePanel === 'form' ? renderEditorPanel() : renderSettingsPanel()}
-          </Col>
+          {tabKey === 'model' ? null : (
+            <Col xs={24} xl={10}>
+              {sidePanel === 'form' ? renderEditorPanel() : renderSettingsPanel()}
+            </Col>
+          )}
         </Row>
       </Layout.Content>
     </Layout>

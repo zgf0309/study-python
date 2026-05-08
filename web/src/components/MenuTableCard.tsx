@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Flex, Input, Space, Table, Tag } from 'antd'
+import { Alert, Button, Card, Flex, Input, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 
 import type { MenusRecord } from '../services/api'

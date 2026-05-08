@@ -1,11 +1,23 @@
 import { Button, Card, Divider, Flex, Form, Input, Switch ,Typography } from 'antd'
+import type { FormInstance } from 'antd'
+
+import type { CreateRolesPayload } from '../services/api'
+
+type RoleEditorCardProps = {
+  mode: 'create' | 'edit'
+  form: FormInstance<CreateRolesPayload>
+  submitting: boolean
+  onSubmit: (values: CreateRolesPayload) => void
+  onCancelEdit: () => void
+}
+
 export function RoleEditorCard({
   mode,
   form,
   submitting,
   onSubmit,
   onCancelEdit,
-  }) {
+  }: RoleEditorCardProps) {
   const isEditing = mode === 'edit'
 
   return (

@@ -62,6 +62,58 @@ export interface CreateRolesPayload {
   status?: boolean | 'enabled' | 'disabled'
 }
 
+export interface ModelConfigRecord {
+  id: number
+  name: string
+  base_url: string
+  model_name: string
+  provider: string
+  is_default: boolean
+  status: string
+  created_at: string
+}
+
+export type ChatRole = 'system' | 'user' | 'assistant'
+
+export interface ChatMessagePayload {
+  role: ChatRole
+  content: string
+}
+
+export interface EmbeddingsResponse {
+  object?: string
+  model?: string
+  data?: Array<{
+    object?: string
+    index?: number
+    embedding?: number[]
+  }>
+  usage?: {
+    prompt_tokens?: number
+    total_tokens?: number
+  }
+}
+
+export interface ChunkEmbeddingsResponse {
+  model?: string
+  chunk_size: number
+  chunk_overlap: number
+  total_chunks: number
+  chunks: Array<{
+    index: number
+    content: string
+    start: number
+    end: number
+    length: number
+    embedding: number[]
+    embedding_dim: number
+  }>
+  usage?: {
+    prompt_tokens?: number
+    total_tokens?: number
+  }
+}
+
 export async function fetchHealth() {
   return request<HealthResponse>({
     method: 'GET',
@@ -192,4 +244,97 @@ export async function getRelationMenus(payload: any) {
     url: '/roles/relation-menus',
     params: payload,
   })
+}
+
+export async function fetchModels() {
+  return request<ModelConfigRecord[]>({
+    method: 'GET',
+    url: '/models',
+  })
+}
+
+export async function createEmbeddings(payload: { model_id?: number; input: string | string[] }) {
+  return request<EmbeddingsResponse>({
+    method: 'POST',
+    url: '/embeddings',
+    data: payload,
+  })
+}
+
+export async function createChunkEmbeddings(payload: {
+  model_id?: number
+  text: string
+  chunk_size?: number
+  chunk_overlap?: number
+}) {
+  return request<ChunkEmbeddingsResponse>({
+    method: 'POST',
+    url: '/embeddings/chunks',
+    data: payload,
+  })
+}
+
+function getApiBaseUrl() {
+  return import.meta.env.VITE_API_BASE_URL || '/api'
+}
+
+export async function streamChat(
+  payload: {
+    model_id?: number
+    messages: ChatMessagePayload[]
+    temperature?: number
+    max_tokens?: number
+  },
+  handlers: {
+    onDelta: (content: string) => void
+    onError?: (message: string) => void
+    signal?: AbortSignal
+  },
+) {
+  const response = await fetch(`${getApiBaseUrl()}/chat/stream`, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal: handlers.signal,
+  })
+
+  if (!response.ok || !response.body) {
+    throw new Error('模型流式接口调用失败。')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split('\n\n')
+    buffer = events.pop() ?? ''
+
+    for (const event of events) {
+      const line = event
+        .split('\n')
+        .find((item) => item.startsWith('data:'))
+        ?.replace(/^data:\s?/, '')
+      if (!line || line === '[DONE]') continue
+
+      try {
+        const chunk = JSON.parse(line)
+        const errorMessage = chunk?.error?.message
+        if (errorMessage) {
+          handlers.onError?.(String(errorMessage))
+          continue
+        }
+        const content = chunk?.choices?.[0]?.delta?.content
+        if (content) handlers.onDelta(String(content))
+      } catch {
+        // 忽略非 JSON 调试行，保持流式会话不中断。
+      }
+    }
+  }
 }

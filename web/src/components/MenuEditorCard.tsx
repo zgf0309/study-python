@@ -1,4 +1,15 @@
 import { Button, Card, Divider, Flex, Form, Input, Switch, Typography } from 'antd'
+import type { FormInstance } from 'antd'
+
+import type { CreateMenusPayload } from '../services/api'
+
+type MenuEditorCardProps = {
+  mode: 'create' | 'edit'
+  form: FormInstance<CreateMenusPayload>
+  submitting: boolean
+  onSubmit: (values: CreateMenusPayload) => void
+  onCancelEdit: () => void
+}
 
 export function MenuEditorCard({
   mode,
@@ -6,7 +17,7 @@ export function MenuEditorCard({
   submitting,
   onSubmit,
   onCancelEdit,
-}) {
+}: MenuEditorCardProps) {
   const isEditing = mode === 'edit'
 
   return (
