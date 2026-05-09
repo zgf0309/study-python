@@ -24,6 +24,10 @@ from .model_configs import split_text_into_chunks
 # 中文注释：设置变量或字段 files_router 的值，供后续逻辑使用。
 files_router = APIRouter()
 
+IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg')
+AUDIO_EXTS = ('.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac')
+VIDEO_EXTS = ('.mp4', '.webm', '.mov', '.m4v', '.avi', '.mkv')
+
 
 def _natural_xml_path_key(path: str) -> tuple[str, int]:
     # 让 slide2.xml 排在 slide10.xml 前面，保证 PPTX 页顺序稳定。
@@ -111,6 +115,46 @@ def _extract_pdf_text(data: bytes) -> str:
     return text
 
 
+def _get_media_kind(filename: str, content_type: str) -> str | None:
+    lower_name = filename.lower()
+    lower_type = content_type.lower()
+    if lower_type.startswith('image/') or lower_name.endswith(IMAGE_EXTS):
+        return '图片'
+    if lower_type.startswith('audio/') or lower_name.endswith(AUDIO_EXTS):
+        return '音频'
+    if lower_type.startswith('video/') or lower_name.endswith(VIDEO_EXTS):
+        return '视频'
+    return None
+
+
+def _format_file_size(size: int) -> str:
+    units = ['B', 'KB', 'MB', 'GB']
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f'{value:.2f} {unit}' if unit != 'B' else f'{int(value)} {unit}'
+        value /= 1024
+    return f'{size} B'
+
+
+def _build_media_knowledge_text(file_info: dict[str, object]) -> str:
+    filename = str(file_info.get('filename') or '')
+    content_type = str(file_info.get('content_type') or 'application/octet-stream')
+    kind = _get_media_kind(filename, content_type) or '多媒体文件'
+    size = int(file_info.get('size') or 0)
+    bucket = str(file_info.get('bucket') or '')
+    object_name = str(file_info.get('object_name') or '')
+
+    return '\n'.join([
+        f'{kind}基础解析结果',
+        f'文件名：{filename}',
+        f'文件类型：{content_type}',
+        f'文件大小：{_format_file_size(size)}',
+        f'存储位置：{bucket}/{object_name}',
+        '解析说明：当前未接入专用多模态理解模型，系统已保存媒体文件的基础元信息作为知识点，并可用于后续检索和详情展示。',
+    ])
+
+
 def _decode_file_text(filename: str, content_type: str, data: bytes) -> str:
     # 根据文件类型提取可向量化文本；避免把 Office/图片/音视频等二进制内容按 latin-1 强行解码成乱码。
     lower_name = filename.lower()
@@ -125,7 +169,7 @@ def _decode_file_text(filename: str, content_type: str, data: bytes) -> str:
         return _extract_pdf_text(data)
     if lower_name.endswith(('.ppt', '.doc', '.xls', '.xlsx')):
         raise HTTPException(status_code=400, detail='暂不支持该 Office 文件格式，请转换为 docx 或 pptx 后重试。')
-    if lower_type.startswith(('image/', 'audio/', 'video/')):
+    if _get_media_kind(filename, content_type):
         raise HTTPException(status_code=400, detail='图片、音频、视频暂不支持按原文切片，请使用多模态解析结果生成知识点。')
 
     is_declared_text = lower_type.startswith('text/') or any(lower_name.endswith(ext) for ext in text_exts)
@@ -154,6 +198,8 @@ def _rebuild_original_content_from_chunks(chunks: list[models.KnowledgeFileChunk
 
 def _read_original_content_from_minio(record: models.KnowledgeFile) -> str:
     file_info = download_file_from_minio(record.object_name, bucket=record.bucket)
+    if _get_media_kind(str(file_info['filename']), str(file_info['content_type'])):
+        return _build_media_knowledge_text(file_info)
     return _decode_file_text(
         str(file_info['filename']),
         str(file_info['content_type']),
@@ -167,6 +213,8 @@ def _serialize_file(record: models.KnowledgeFile, *, include_chunks: bool = Fals
         'bucket': record.bucket,
         'object_name': record.object_name,
         'filename': record.filename,
+        'knowledge_base_id': record.knowledge_base_id,
+        'knowledge_base_name': record.knowledge_base.name if record.knowledge_base else '',
         'content_type': record.content_type,
         'size': record.size,
         'chunk_size': record.chunk_size,
@@ -205,6 +253,56 @@ def _serialize_file(record: models.KnowledgeFile, *, include_chunks: bool = Fals
     return payload
 
 
+def _serialize_knowledge_base(record: models.KnowledgeBase) -> dict[str, Any]:
+    return {
+        'id': record.id,
+        'name': record.name,
+        'description': record.description or '',
+        'status': record.status,
+        'created_at': record.created_at.isoformat() if record.created_at else '',
+    }
+
+
+def _get_or_create_default_knowledge_base(db) -> models.KnowledgeBase:
+    record = db.scalar(select(models.KnowledgeBase).where(models.KnowledgeBase.name == '默认知识库'))
+    if record is not None:
+        return record
+    record = models.KnowledgeBase(name='默认知识库', description='系统默认知识库', status='enabled')
+    db.add(record)
+    db.flush()
+    return record
+
+
+@files_router.get('/knowledge-bases')
+def list_knowledge_bases():
+    with SessionLocal() as db:
+        _get_or_create_default_knowledge_base(db)
+        db.commit()
+        records = list(db.scalars(select(models.KnowledgeBase).order_by(models.KnowledgeBase.id.asc())))
+        payload = [_serialize_knowledge_base(record) for record in records]
+    return api_response(data=payload)
+
+
+@files_router.post('/knowledge-bases', status_code=status.HTTP_201_CREATED)
+def create_knowledge_base(data: dict[str, Any] | None = Body(default=None)):
+    data = data or {}
+    name = str(data.get('name') or '').strip()
+    description = str(data.get('description') or '').strip()
+    if not name:
+        raise HTTPException(status_code=400, detail='知识库名称不能为空。')
+
+    with SessionLocal() as db:
+        existing = db.scalar(select(models.KnowledgeBase).where(models.KnowledgeBase.name == name))
+        if existing is not None:
+            raise HTTPException(status_code=400, detail='知识库名称已存在。')
+        record = models.KnowledgeBase(name=name, description=description or None, status='enabled')
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        payload = _serialize_knowledge_base(record)
+    return api_response(data=payload, message='知识库已新增。')
+
+
 # 中文注释：使用装饰器为下面的函数或方法绑定额外行为。
 @files_router.post('/files/upload', status_code=status.HTTP_201_CREATED)
 # 中文注释：定义函数 upload_file，封装一段可复用的业务逻辑。
@@ -220,7 +318,11 @@ def upload_file(file: UploadFile = File(...)):
 def list_vectorized_files():
     # 查询已经切片并向量化保存到数据库的文件列表。
     with SessionLocal() as db:
-        records = list(db.scalars(select(models.KnowledgeFile).order_by(models.KnowledgeFile.id.desc())))
+        records = list(db.scalars(
+            select(models.KnowledgeFile)
+            .options(selectinload(models.KnowledgeFile.knowledge_base))
+            .order_by(models.KnowledgeFile.id.desc())
+        ))
         payload = [_serialize_file(record) for record in records]
     return api_response(data=payload)
 
@@ -231,7 +333,7 @@ def get_vectorized_file(file_id: int):
     with SessionLocal() as db:
         record = db.scalar(
             select(models.KnowledgeFile)
-            .options(selectinload(models.KnowledgeFile.chunks))
+            .options(selectinload(models.KnowledgeFile.chunks), selectinload(models.KnowledgeFile.knowledge_base))
             .where(models.KnowledgeFile.id == file_id)
         )
         if record is None:
@@ -247,6 +349,7 @@ def vectorize_minio_file(data: dict[str, Any] | None = Body(default=None)):
     bucket = str(data.get('bucket') or '').strip() or None
     object_name = str(data.get('object_name') or '').strip()
     model_id = int(data.get('model_id') or 0)
+    knowledge_base_id = int(data.get('knowledge_base_id') or 0)
     chunk_size = int(data.get('chunk_size') or 500)
     chunk_overlap = int(data.get('chunk_overlap') or 80)
 
@@ -258,21 +361,38 @@ def vectorize_minio_file(data: dict[str, Any] | None = Body(default=None)):
         raise HTTPException(status_code=400, detail='chunk_overlap 不能小于 0。')
     if chunk_overlap >= chunk_size:
         raise HTTPException(status_code=400, detail='chunk_overlap 必须小于 chunk_size。')
+    if knowledge_base_id <= 0:
+        raise HTTPException(status_code=400, detail='请选择知识库。')
 
     file_info = download_file_from_minio(object_name, bucket=bucket)
-    text = _decode_file_text(
-        str(file_info['filename']),
-        str(file_info['content_type']),
-        file_info['data'],
-    ).strip()
+    media_kind = _get_media_kind(str(file_info['filename']), str(file_info['content_type']))
+    if media_kind:
+        text = _build_media_knowledge_text(file_info)
+    else:
+        text = _decode_file_text(
+            str(file_info['filename']),
+            str(file_info['content_type']),
+            file_info['data'],
+        ).strip()
     if not text:
         raise HTTPException(status_code=400, detail='文件内容为空，无法切片向量化。')
 
-    chunks = split_text_into_chunks(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    chunks = [
+        {
+            'index': 0,
+            'content': text,
+            'start': 0,
+            'end': len(text),
+            'length': len(text),
+        }
+    ] if media_kind else split_text_into_chunks(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     if not chunks:
         raise HTTPException(status_code=400, detail='切片结果为空。')
 
     with SessionLocal() as db:
+        knowledge_base = db.get(models.KnowledgeBase, knowledge_base_id)
+        if knowledge_base is None or knowledge_base.status != 'enabled':
+            raise HTTPException(status_code=404, detail='知识库不存在或未启用。')
         config = crud.get_model_config(db, model_id) if model_id > 0 else crud.get_default_embedding_model_config(db)
         if not config or config.status != 'enabled':
             raise HTTPException(status_code=404, detail='向量模型配置不存在或未启用。')
@@ -310,6 +430,7 @@ def vectorize_minio_file(data: dict[str, Any] | None = Body(default=None)):
             bucket=str(file_info['bucket']),
             object_name=object_name,
             filename=str(file_info['filename']),
+            knowledge_base_id=knowledge_base_id,
             content_type=str(file_info['content_type']),
             size=int(file_info['size']),
             chunk_size=chunk_size,
@@ -335,7 +456,7 @@ def vectorize_minio_file(data: dict[str, Any] | None = Body(default=None)):
         db.commit()
         saved = db.scalar(
             select(models.KnowledgeFile)
-            .options(selectinload(models.KnowledgeFile.chunks))
+            .options(selectinload(models.KnowledgeFile.chunks), selectinload(models.KnowledgeFile.knowledge_base))
             .where(models.KnowledgeFile.id == record.id)
         )
         if saved is None:

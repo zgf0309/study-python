@@ -45,10 +45,38 @@ def initialize_database() -> None:
     # 启动时创建表结构，并补充初始化基础数据。
     # 中文注释：设置变量或字段 Base.metadata.create_all(bind 的值，供后续逻辑使用。
     Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+    knowledge_file_columns = {
+        column['name']
+        for column in inspector.get_columns('knowledge_files')
+    } if 'knowledge_files' in inspector.get_table_names() else set()
+    if 'knowledge_files' in inspector.get_table_names() and 'knowledge_base_id' not in knowledge_file_columns:
+        with engine.begin() as connection:
+            connection.execute(text('ALTER TABLE knowledge_files ADD COLUMN knowledge_base_id INTEGER NULL'))
     # 中文注释：使用上下文管理器自动管理资源的创建和释放。
     with SessionLocal() as db:
         # 中文注释：调用函数或方法，执行对应的业务处理。
         crud.ensure_builtin_model_configs(db)
+        default_base = db.scalar(
+            text("SELECT id FROM knowledge_bases WHERE name = :name"),
+            {'name': '默认知识库'},
+        )
+        if default_base is None:
+            db.execute(
+                text("INSERT INTO knowledge_bases (name, description, status) VALUES (:name, :description, :status)"),
+                {'name': '默认知识库', 'description': '系统默认知识库', 'status': 'enabled'},
+            )
+            db.commit()
+            default_base = db.scalar(
+                text("SELECT id FROM knowledge_bases WHERE name = :name"),
+                {'name': '默认知识库'},
+            )
+        if default_base is not None:
+            db.execute(
+                text("UPDATE knowledge_files SET knowledge_base_id = :knowledge_base_id WHERE knowledge_base_id IS NULL"),
+                {'knowledge_base_id': int(default_base)},
+            )
+            db.commit()
 
 
 # 中文注释：使用装饰器为下面的函数或方法绑定额外行为。

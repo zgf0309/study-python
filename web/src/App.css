@@ -24,7 +24,7 @@
 .hero-copy,
 .signal-card,
 .main-grid .ant-card {
-  height: 100%;
+  height: auto;
 }
 
 .hero-copy {
@@ -231,6 +231,10 @@
   padding: 8px 0;
 }
 
+.chunk-filter-head {
+  gap: 12px;
+}
+
 .detail-section-head .ant-typography,
 .document-original .ant-typography,
 .media-main-panel .ant-typography {
@@ -249,10 +253,10 @@
 
 .doc-paper {
   box-sizing: border-box;
-  min-height: 560px;
+  max-height: 680px;
   max-width: 1180px;
-  padding: 42px 38px;
-  overflow: hidden;
+  padding: 10px 5px;
+  overflow: auto;
   background: #fff;
 }
 
@@ -352,6 +356,11 @@
   width: 100%;
 }
 
+.knowledge-current {
+  display: block;
+  margin: -6px 0 12px;
+}
+
 .detail-pagination {
   display: flex;
   justify-content: flex-end;
@@ -379,6 +388,37 @@
   white-space: pre-wrap;
 }
 
+.video-frame-info {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.video-frame-meta {
+  width: min(360px, 100%);
+}
+
+.video-frame-image,
+.video-frame-empty {
+  width: min(360px, 100%);
+  border: 1px solid #dfe3f8;
+  border-radius: 10px;
+  background: #eef1ff;
+}
+
+.video-frame-image {
+  display: block;
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.video-frame-empty {
+  display: grid;
+  min-height: 160px;
+  place-items: center;
+  padding: 16px;
+}
+
 .file-card-toolbar {
   position: absolute;
   top: 10px;
@@ -390,6 +430,21 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 6px 18px rgba(17, 33, 68, 0.12);
+  opacity: 1;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.chunk-row .file-card-toolbar {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
+.chunk-row:hover .file-card-toolbar,
+.chunk-row-active .file-card-toolbar {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .chunk-number {
@@ -441,6 +496,23 @@
   width: 100%;
 }
 
+.video-player-shell {
+  display: flex;
+  align-items: center;
+  min-height: 220px;
+  margin-bottom: 28px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f5f7fb;
+}
+
+.video-player-shell video {
+  width: min(720px, 100%);
+  max-height: 420px;
+  border-radius: 8px;
+  background: #111827;
+}
+
 @media (max-width: 1180px) {
   .document-detail-layout,
   .media-detail-layout {
@@ -455,6 +527,11 @@
   }
 
   .file-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chunk-filter-head {
     align-items: flex-start;
     flex-direction: column;
   }

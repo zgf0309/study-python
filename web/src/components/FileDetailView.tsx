@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Card, Empty, Flex, Input, Pagination, Select, Space, Switch, Tabs, Tag, Typography } from 'antd'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import type { VectorizedFileRecord } from '../services/api'
 
 type FileKind = 'document' | 'image' | 'audio' | 'video'
+type FileChunk = NonNullable<VectorizedFileRecord['chunks']>[number]
 
 interface FileDetailViewProps {
   file: VectorizedFileRecord
@@ -20,6 +21,18 @@ const audioExt = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac']
 const videoExt = ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv']
 const documentExt = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'md', 'csv', 'json']
 const defaultPageSize = 5
+
+function formatMediaTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00'
+  const totalSeconds = Math.floor(seconds)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const restSeconds = totalSeconds % 60
+  const twoDigits = (value: number) => String(value).padStart(2, '0')
+  return hours > 0
+    ? `${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(restSeconds)}`
+    : `${twoDigits(minutes)}:${twoDigits(restSeconds)}`
+}
 
 function extensionOf(filename: string) {
   return filename.split('.').pop()?.toLowerCase() ?? ''
@@ -80,19 +93,56 @@ function ChunkToolbar() {
   )
 }
 
-function KnowledgePanel({ file, kind }: { file: VectorizedFileRecord; kind: FileKind }) {
+function ChunkFilterHeader() {
+  return (
+    <Flex justify="space-between" align="center" className="detail-section-head chunk-filter-head">
+      <Typography.Title level={5} style={{ margin: 0 }}>
+        切片信息<Typography.Text type="secondary" className="section-help">?</Typography.Text>
+      </Typography.Title>
+      <Space>
+        <Input.Search size="small" placeholder="搜索切片内容" style={{ width: 240 }} />
+        <Select size="small" value="all" options={[{ label: '全部状态', value: 'all' }]} style={{ width: 120 }} />
+      </Space>
+    </Flex>
+  )
+}
+
+function KnowledgePanel({
+  file,
+  kind,
+  selectedChunkIndex,
+}: {
+  file: VectorizedFileRecord
+  kind: FileKind
+  selectedChunkIndex?: number
+}) {
   const chunks = file.chunks ?? []
   const [page, setPage] = useState(1)
-  const visibleChunks = pageItems(chunks, page)
+  const selectedChunk = typeof selectedChunkIndex === 'number'
+    ? chunks.find((chunk) => chunk.index === selectedChunkIndex)
+    : undefined
+  const knowledgeChunks = selectedChunk ? [selectedChunk] : chunks
+  const visibleChunks = pageItems(knowledgeChunks, page)
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedChunkIndex])
 
   return (
     <aside className="knowledge-panel">
       <Flex justify="space-between" align="center" className="detail-section-head">
-        <Typography.Title level={5}>切片知识点（{Math.max(chunks.length, file.chunk_count || 0)}）</Typography.Title>
+        <Typography.Title level={5} style={{margin: 0}}>
+          切片知识点（{selectedChunk ? `#${selectedChunk.index + 1}` : Math.max(chunks.length, file.chunk_count || 0)}）
+        </Typography.Title>
         <Button size="small">＋ 新建</Button>
       </Flex>
+      {selectedChunk ? (
+        <Typography.Text type="secondary" className="knowledge-current">
+          当前显示切片 #{selectedChunk.index + 1} 对应知识点
+        </Typography.Text>
+      ) : null}
       <Space direction="vertical" size={10} className="knowledge-list">
-        {chunks.length === 0 ? (
+        {knowledgeChunks.length === 0 ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无切片知识点" />
         ) : visibleChunks.map((chunk) => (
           <Card key={chunk.index} size="small" className="knowledge-card">
@@ -107,14 +157,15 @@ function KnowledgePanel({ file, kind }: { file: VectorizedFileRecord; kind: File
           </Card>
         ))}
       </Space>
-      {chunks.length > defaultPageSize ? (
+      {knowledgeChunks.length > defaultPageSize ? (
         <Pagination
           className="detail-pagination"
           current={page}
           pageSize={defaultPageSize}
-          total={chunks.length}
+          total={knowledgeChunks.length}
           size="small"
           showSizeChanger={false}
+          showTotal={(total, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条，每页 ${defaultPageSize} 条`}
           onChange={setPage}
         />
       ) : null}
@@ -122,7 +173,17 @@ function KnowledgePanel({ file, kind }: { file: VectorizedFileRecord; kind: File
   )
 }
 
-function ChunkCard({ file, kind }: { file: VectorizedFileRecord; kind: FileKind }) {
+function ChunkCard({
+  file,
+  kind,
+  videoCurrentTime = 0,
+  videoFrameUrl,
+}: {
+  file: VectorizedFileRecord
+  kind: FileKind
+  videoCurrentTime?: number
+  videoFrameUrl?: string
+}) {
   const chunks = file.chunks ?? []
   const first = chunks[0]
   const previewUrl = file.presigned_url || file.public_url || ''
@@ -132,16 +193,32 @@ function ChunkCard({ file, kind }: { file: VectorizedFileRecord; kind: FileKind 
       <ChunkToolbar />
       <Typography.Text strong className="chunk-number">#1 · 原文切片 · {first?.length ?? file.size}字符</Typography.Text>
       {kind === 'image' && previewUrl ? <img className="image-preview" src={previewUrl} alt={file.filename} /> : null}
-      {kind === 'video' && previewUrl ? <video className="video-preview" src={previewUrl} controls /> : null}
       {kind === 'image' ? (
         <div className="image-caption">
           <Typography.Text>🔷 暂无标题</Typography.Text>
           <Typography.Text type="secondary">暂无详细信息</Typography.Text>
         </div>
       ) : (
-        <Typography.Paragraph className="chunk-content">
-          {first?.content || '暂无可展示的切片文本。'}
-        </Typography.Paragraph>
+        <>
+          {kind === 'video' ? (
+            <div className="video-frame-info">
+              <Flex justify="space-between" align="center" className="video-frame-meta">
+                <Typography.Text strong>当前播放位置</Typography.Text>
+                <Tag color="processing">{formatMediaTime(videoCurrentTime)}</Tag>
+              </Flex>
+              {videoFrameUrl ? (
+                <img className="video-frame-image" src={videoFrameUrl} alt={`当前视频帧 ${formatMediaTime(videoCurrentTime)}`} />
+              ) : (
+                <div className="video-frame-empty">
+                  <Typography.Text type="secondary">播放视频后显示当前视频帧</Typography.Text>
+                </div>
+              )}
+            </div>
+          ) : null}
+          <Typography.Paragraph className="chunk-content">
+            {first?.content || '暂无可展示的切片文本。'}
+          </Typography.Paragraph>
+        </>
       )}
     </Card>
   )
@@ -171,7 +248,15 @@ function DocumentOriginal({ file }: { file: VectorizedFileRecord }) {
   )
 }
 
-function ChunkList({ file }: { file: VectorizedFileRecord }) {
+function ChunkList({
+  file,
+  selectedChunkIndex,
+  onSelectChunk,
+}: {
+  file: VectorizedFileRecord
+  selectedChunkIndex?: number
+  onSelectChunk: (chunk: FileChunk) => void
+}) {
   const chunks = file.chunks ?? []
   const [page, setPage] = useState(1)
   const [activeTab, setActiveTab] = useState('all')
@@ -181,7 +266,7 @@ function ChunkList({ file }: { file: VectorizedFileRecord }) {
   return (
     <section className="chunk-list-panel">
       <Flex justify="space-between" align="center" className="detail-section-head">
-        <Typography.Title level={5}>
+        <Typography.Title level={5} style={{margin: 0}}>
           切片信息<Typography.Text type="secondary" className="section-help">?</Typography.Text>
         </Typography.Title>
         <Space>
@@ -205,11 +290,19 @@ function ChunkList({ file }: { file: VectorizedFileRecord }) {
       />
       <Space direction="vertical" size={10} className="chunk-list">
         {filteredChunks.length === 0 ? <Empty description={activeTab === 'custom' ? '暂无自定义切片' : '暂无切片信息'} /> : visibleChunks.map((chunk) => (
-          <Card key={chunk.index} size="small" className={chunk.index === 0 ? 'chunk-row chunk-row-active' : 'chunk-row'}>
-            {chunk.index === 0 ? <ChunkToolbar /> : null}
+          <Card
+            key={chunk.index}
+            size="small"
+            className={chunk.index === selectedChunkIndex ? 'chunk-row chunk-row-active' : 'chunk-row'}
+            hoverable
+            onClick={() => onSelectChunk(chunk)}
+          >
+            <ChunkToolbar />
             <Typography.Text strong>#{chunk.index + 1} · 原文切片 · {chunk.length}字符</Typography.Text>
             <Typography.Paragraph ellipsis={{ rows: 2 }} className="chunk-row-text">{chunk.content}</Typography.Paragraph>
-            {chunk.index > 0 ? <Tag color="success">已启用</Tag> : null}
+            <Tag color={chunk.index === selectedChunkIndex ? 'processing' : 'success'}>
+              {chunk.index === selectedChunkIndex ? '当前选中' : '已启用'}
+            </Tag>
           </Card>
         ))}
       </Space>
@@ -231,6 +324,49 @@ function ChunkList({ file }: { file: VectorizedFileRecord }) {
 export function FileDetailView({ file, loading, onBack, onRefresh, onReparse }: FileDetailViewProps) {
   const kind = getFileKind(file)
   const previewUrl = file.presigned_url || file.public_url || ''
+  const chunks = file.chunks ?? []
+  const [selectedChunkIndex, setSelectedChunkIndex] = useState<number | undefined>(chunks[0]?.index)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const lastFrameCaptureTimeRef = useRef(-1)
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0)
+  const [videoFrameUrl, setVideoFrameUrl] = useState('')
+
+  useEffect(() => {
+    setSelectedChunkIndex(file.chunks?.[0]?.index)
+  }, [file.id, file.chunks])
+
+  useEffect(() => {
+    setVideoCurrentTime(0)
+    setVideoFrameUrl('')
+    lastFrameCaptureTimeRef.current = -1
+  }, [file.id])
+
+  const captureVideoFrame = useCallback(() => {
+    const video = videoRef.current
+    if (!video || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return
+
+    const currentTime = video.currentTime || 0
+    setVideoCurrentTime(currentTime)
+
+    if (Math.abs(currentTime - lastFrameCaptureTimeRef.current) < 0.45) return
+    lastFrameCaptureTimeRef.current = currentTime
+
+    const canvas = document.createElement('canvas')
+    const maxWidth = 360
+    const scale = Math.min(1, maxWidth / video.videoWidth)
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    try {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      setVideoFrameUrl(canvas.toDataURL('image/jpeg', 0.82))
+    } catch {
+      // 如果对象存储未开启跨域，canvas 可能被浏览器安全策略拦截；此时保留时间显示即可。
+      setVideoFrameUrl('')
+    }
+  }, [])
 
   return (
     <div className="file-detail-page">
@@ -252,8 +388,12 @@ export function FileDetailView({ file, loading, onBack, onRefresh, onReparse }: 
       {kind === 'document' ? (
         <main className="document-detail-layout">
           <DocumentOriginal file={file} />
-          <ChunkList file={file} />
-          <KnowledgePanel file={file} kind={kind} />
+          <ChunkList
+            file={file}
+            selectedChunkIndex={selectedChunkIndex}
+            onSelectChunk={(chunk) => setSelectedChunkIndex(chunk.index)}
+          />
+          <KnowledgePanel file={file} kind={kind} selectedChunkIndex={selectedChunkIndex} />
         </main>
       ) : (
         <main className="media-detail-layout">
@@ -264,12 +404,30 @@ export function FileDetailView({ file, loading, onBack, onRefresh, onReparse }: 
                 <div className="audio-player-shell">
                   {previewUrl ? <audio src={previewUrl} controls /> : <Typography.Text type="secondary">暂无音频预览地址</Typography.Text>}
                 </div>
-                <Typography.Title level={5}>切片信息</Typography.Title>
+                <ChunkFilterHeader />
               </>
             ) : null}
-            <ChunkCard file={file} kind={kind} />
+            {kind === 'video' ? (
+              <>
+                <Typography.Title level={5}>视频源文件</Typography.Title>
+                <div className="video-player-shell">
+                  {previewUrl ? (
+                    <video
+                      ref={videoRef}
+                      src={previewUrl}
+                      controls
+                      onLoadedData={captureVideoFrame}
+                      onSeeked={captureVideoFrame}
+                      onTimeUpdate={captureVideoFrame}
+                    />
+                  ) : <Typography.Text type="secondary">暂无视频预览地址</Typography.Text>}
+                </div>
+                <ChunkFilterHeader />
+              </>
+            ) : null}
+            <ChunkCard file={file} kind={kind} videoCurrentTime={videoCurrentTime} videoFrameUrl={videoFrameUrl} />
           </section>
-          <KnowledgePanel file={file} kind={kind} />
+          <KnowledgePanel file={file} kind={kind} selectedChunkIndex={selectedChunkIndex} />
         </main>
       )}
     </div>

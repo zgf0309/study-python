@@ -209,6 +209,19 @@ class LLMModelConfig(Base):
     )
 
 
+class KnowledgeBase(Base):
+    # 知识库表，文件切片向量化时可关联到指定知识库。
+    __tablename__ = 'knowledge_bases'
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='enabled')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    files: Mapped[list['KnowledgeFile']] = relationship(back_populates='knowledge_base')
+
+
 class KnowledgeFile(Base):
     # MinIO 文件处理记录表，保存文件列表和切片向量化状态。
     __tablename__ = 'knowledge_files'
@@ -217,6 +230,7 @@ class KnowledgeFile(Base):
     bucket: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     object_name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    knowledge_base_id: Mapped[Optional[int]] = mapped_column(ForeignKey('knowledge_bases.id', ondelete='SET NULL'), nullable=True, index=True)
     content_type: Mapped[str] = mapped_column(String(100), nullable=False, default='application/octet-stream')
     size: Mapped[int] = mapped_column(nullable=False, default=0)
     chunk_size: Mapped[int] = mapped_column(nullable=False, default=500)
@@ -231,6 +245,7 @@ class KnowledgeFile(Base):
         back_populates='file',
         cascade='all, delete-orphan',
     )
+    knowledge_base: Mapped[Optional[KnowledgeBase]] = relationship(back_populates='files')
 
 
 class KnowledgeFileChunk(Base):

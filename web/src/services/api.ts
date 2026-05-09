@@ -110,6 +110,8 @@ export interface VectorizedFileRecord {
   bucket: string
   object_name: string
   filename: string
+  knowledge_base_id?: number | null
+  knowledge_base_name?: string
   content_type: string
   size: number
   chunk_size: number
@@ -132,6 +134,14 @@ export interface VectorizedFileRecord {
     embedding: number[]
     embedding_dim: number
   }>
+}
+
+export interface KnowledgeBaseRecord {
+  id: number
+  name: string
+  description?: string
+  status: string
+  created_at: string
 }
 
 export interface ChunkEmbeddingsResponse {
@@ -321,6 +331,21 @@ export async function fetchVectorizedFiles() {
   })
 }
 
+export async function fetchKnowledgeBases() {
+  return request<KnowledgeBaseRecord[]>({
+    method: 'GET',
+    url: '/knowledge-bases',
+  })
+}
+
+export async function createKnowledgeBase(payload: { name: string; description?: string }) {
+  return request<KnowledgeBaseRecord>({
+    method: 'POST',
+    url: '/knowledge-bases',
+    data: payload,
+  })
+}
+
 export async function fetchVectorizedFile(id: number) {
   return request<VectorizedFileRecord>({
     method: 'GET',
@@ -332,6 +357,7 @@ export async function vectorizeMinioFile(payload: {
   bucket?: string
   object_name: string
   model_id?: number
+  knowledge_base_id?: number
   chunk_size?: number
   chunk_overlap?: number
 }) {

@@ -1,11 +1,13 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, App as AntApp, Button, Card, Flex, Input, Select, Space, Table, Tag, Typography } from 'antd'
+import { Alert, App as AntApp, Button, Card, Flex, Input, Popover, Select, Space, Table, Tag, Typography } from 'antd'
 
 import { FileDetailView, getFileKind } from './FileDetailView'
 
 import {
   createChunkEmbeddings,
   createEmbeddings,
+  createKnowledgeBase,
+  fetchKnowledgeBases,
   fetchModels,
   fetchVectorizedFile,
   fetchVectorizedFiles,
@@ -15,6 +17,7 @@ import {
   type ChatMessagePayload,
   type ChunkEmbeddingsResponse,
   type EmbeddingsResponse,
+  type KnowledgeBaseRecord,
   type MinioUploadResponse,
   type ModelConfigRecord,
   type VectorizedFileRecord,
@@ -48,6 +51,10 @@ export function ModelTableCard() {
   )
   const [chunkSize, setChunkSize] = useState(80)
   const [chunkOverlap, setChunkOverlap] = useState(20)
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>([])
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<number>()
+  const [knowledgeBaseName, setKnowledgeBaseName] = useState('')
+  const [knowledgeBasePopoverOpen, setKnowledgeBasePopoverOpen] = useState(false)
   const [chunkResult, setChunkResult] = useState<ChunkEmbeddingsResponse | null>(null)
   const [chunkLoading, setChunkLoading] = useState(false)
   const [fileUploadLoading, setFileUploadLoading] = useState(false)
@@ -87,6 +94,46 @@ export function ModelTableCard() {
     [chatModels],
   )
 
+  const knowledgeBaseOptions = useMemo(
+    () => knowledgeBases.map((item) => ({
+      label: item.name,
+      value: item.id,
+    })),
+    [knowledgeBases],
+  )
+
+  const loadKnowledgeBases = useCallback(async () => {
+    try {
+      const res = await fetchKnowledgeBases()
+      const result = unwrapList<KnowledgeBaseRecord>(res)
+      const items = result?.items ?? []
+      setKnowledgeBases(items)
+      setSelectedKnowledgeBaseId((current) => current ?? items[0]?.id)
+    } catch {
+      void message.error('知识库列表加载失败。')
+    }
+  }, [message])
+
+  const handleCreateKnowledgeBase = useCallback(async () => {
+    const name = knowledgeBaseName.trim()
+    if (!name) {
+      void message.warning('请输入知识库名称。')
+      return
+    }
+    try {
+      const res = await createKnowledgeBase({ name })
+      const wrapped = res as unknown as { data?: { data?: KnowledgeBaseRecord } }
+      const record = wrapped.data?.data ?? (res as unknown as KnowledgeBaseRecord)
+      setKnowledgeBases((items) => [record, ...items])
+      setSelectedKnowledgeBaseId(record.id)
+      setKnowledgeBaseName('')
+      setKnowledgeBasePopoverOpen(false)
+      void message.success('知识库已新增。')
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : '知识库新增失败。')
+    }
+  }, [knowledgeBaseName, message])
+
   const loadModels = useCallback(async () => {
     setLoadingModels(true)
     try {
@@ -115,9 +162,10 @@ export function ModelTableCard() {
 
   useEffect(() => {
     void loadModels()
+    void loadKnowledgeBases()
     void loadVectorizedFiles()
     return () => abortRef.current?.abort()
-  }, [loadModels, loadVectorizedFiles])
+  }, [loadKnowledgeBases, loadModels, loadVectorizedFiles])
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort()
@@ -257,12 +305,17 @@ export function ModelTableCard() {
       void message.warning('未找到可用的向量模型。')
       return
     }
+    if (!selectedKnowledgeBaseId) {
+      void message.warning('请选择知识库。')
+      return
+    }
     setFileVectorLoading(true)
     try {
       const res = await vectorizeMinioFile({
         bucket: uploadedFile.bucket,
         object_name: uploadedFile.object_name,
         model_id: embeddingModel.id,
+        knowledge_base_id: selectedKnowledgeBaseId,
         chunk_size: chunkSize,
         chunk_overlap: chunkOverlap,
       })
@@ -276,7 +329,7 @@ export function ModelTableCard() {
     } finally {
       setFileVectorLoading(false)
     }
-  }, [chunkOverlap, chunkSize, embeddingModel, loadVectorizedFiles, message, uploadedFile])
+  }, [chunkOverlap, chunkSize, embeddingModel, loadVectorizedFiles, message, selectedKnowledgeBaseId, uploadedFile])
 
   const firstEmbedding = embeddingResult?.data?.[0]?.embedding ?? []
 
@@ -453,6 +506,40 @@ export function ModelTableCard() {
                   style={{ width: 96 }}
                 />
               </Space.Compact>
+              <Space.Compact>
+                <Button disabled>知识库</Button>
+                <Select
+                  allowClear
+                  placeholder="请选择知识库"
+                  value={selectedKnowledgeBaseId}
+                  options={knowledgeBaseOptions}
+                  onChange={setSelectedKnowledgeBaseId}
+                  style={{ width: 200 }}
+                />
+              </Space.Compact>
+              <Popover
+                trigger="click"
+                open={knowledgeBasePopoverOpen}
+                onOpenChange={setKnowledgeBasePopoverOpen}
+                title="新建知识库"
+                content={(
+                  <Space direction="vertical" size={10} style={{ width: 260 }}>
+                    <Input
+                      autoFocus
+                      placeholder="请输入知识库名称"
+                      value={knowledgeBaseName}
+                      onChange={(event) => setKnowledgeBaseName(event.target.value)}
+                      onPressEnter={handleCreateKnowledgeBase}
+                    />
+                    <Flex justify="flex-end" gap={8}>
+                      <Button size="small" onClick={() => setKnowledgeBasePopoverOpen(false)}>取消</Button>
+                      <Button size="small" type="primary" onClick={handleCreateKnowledgeBase}>新增</Button>
+                    </Flex>
+                  </Space>
+                )}
+              >
+                <Button>＋ 新建知识库</Button>
+              </Popover>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -490,7 +577,7 @@ export function ModelTableCard() {
                       <Button
                         type="primary"
                         loading={fileVectorLoading}
-                        disabled={!embeddingModel}
+                        disabled={!embeddingModel || !selectedKnowledgeBaseId}
                         onClick={vectorizeUploadedFile}
                       >
                         文件切片并向量化
@@ -505,7 +592,7 @@ export function ModelTableCard() {
                 type="success"
                 showIcon
                 message={`数据库已保存文件：${fileVectorResult.filename}`}
-                description={`切片 ${fileVectorResult.chunk_count} 段，模型 ${fileVectorResult.embedding_model}，参数 ${fileVectorResult.chunk_size}/${fileVectorResult.chunk_overlap}`}
+                description={`知识库：${fileVectorResult.knowledge_base_name || '未关联'}；切片 ${fileVectorResult.chunk_count} 段，模型 ${fileVectorResult.embedding_model}，参数 ${fileVectorResult.chunk_size}/${fileVectorResult.chunk_overlap}`}
               />
             ) : null}
             {vectorizedFiles.length > 0 ? (
@@ -537,6 +624,7 @@ export function ModelTableCard() {
                     },
                   },
                   { title: '切片数', dataIndex: 'chunk_count', key: 'chunk_count', width: 90 },
+                  { title: '知识库', dataIndex: 'knowledge_base_name', key: 'knowledge_base_name', ellipsis: true },
                   { title: '向量模型', dataIndex: 'embedding_model', key: 'embedding_model', ellipsis: true },
                   { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
                 ]}
